@@ -4,3 +4,96 @@ manually added to the HashicorpVault-AD secrets under the relevant namespace.
 
 New service account can directly be requested under the Hashicorp Vault OU or existing accounts can be migrated over.
 (SNOW internal process)
+
+Once service account is created, the user can add the account to the Hashicorp Vault AD secrets engine using
+the following steps. Create a "payload.json" file with following contents.
+
+Ex : ttl 300 seconds before the password for acc expires and new password is generated on demand.
+
+----------
+{
+ "service_acc_name": "SERVICE_ACC",
+ "ttl": 300
+}
+----------
+
+Execute API POST call to Hashicorp Vault with relevant credentials/tokens.
+
+-------
+curl --dump-header -f -H "X-Vault-Token: <token of user with relevant permissions>" -H "X-Vault-Namespace: <relevant namespace>" --request POST --data @payload.json https://vault-dns:8200/v1/secrets/ad/creds/<path>/<role_name>
+-------
+
+Retrieving the password for service-account :
+
+In order to retrieve password for service-account execute below API GET call.
+
+---------
+curl --dump-header -f -H "X-Vault-Token: <token of user with relevant permissions>" -H "X-Vault-Namespace: <relevant namespace>" --request GET https://vault-dns:8200/v1/secrets/ad/creds/<path>/<role_name>
+
+<role_name> is usually the account name.
+---------
+
+Ansible Playbook >> Password can also be retrieved as follows :
+
+----------   -----------   -----------  ---------
+- name: Retrieve secrets from Hashicorp vault
+  hosts: localhost
+
+  vars:
+    get_ad_credential: "{{ lookup('hashi_vault', 'secret=secrets/ad/creds/service_acc_name token={{ hvtoken}} url={{ host_url}} namespace={{ hvnamespace }}') }}"
+
+  tasks:
+  - name: Store retrieved username and password into facts
+    setfact:
+      ad_username: "{{ get_ad_credential['username'] }}"
+      ad_password: "{{ get_ad_credential['current_password'] }}"
+
+  - name: Print retrieve username
+    debug:
+      msg: "{{ ad_username }}"
+
+  - name: Retrieve the secrets from HV using the retrieved ad credentials
+    set_fact:
+      secrets_using_user_pass: "{{ lookup('hashi_vault', 'secret={{ hvnamespace }}secrets/kv/ansible-tower/data/test_adm auth_method=ldap username={{ ad_username }} password={{ ad_password }} url={{ host_url }}') }}"
+
+  - name: Print all retrieved values
+    debug:
+      msg: "KEY: {{ item.key }}, VALUE: {{ item.value }}"
+    loop: "{{ secrets_using_token.data | dict2items }}"
+    no_log: False
+
+  - name: Print all retrieved values
+    debug:
+      msg: "KEY: {{ item.key }}, VALUE: {{ item.value }}"
+    loop: "{{ secrets_using_token.data | dict2items }}"
+    loop_control:
+       label: "{{ item.key }}"
+
+  - name: Login to HV using the retrieved credentials to generate new token
+     uri:
+        url: "{{ host_url }}/v1/auth/ldap/login/{{ ad_username }}"
+        force_basic_auth: yes
+        body:
+           name: "{{ ad_username }}"
+           password: "{{ ad_password }}"
+        method: POST
+        body_format: json
+    register: _result
+
+  - name: Store retrieved token into a facts
+    set_fact:
+      secrets_using_token: "{{ lookup('hashi_vault', 'secret=secrets/kv/ansible-tower/data/test_adm toekn={{ hv_token }} url={{ host_url }} namespace={{ hvnamespace }}') }}"
+
+  - name: Print all retrieved values
+    debug:
+      msg: "KEY: {{ item.key }}, VALUE: {{ item.value }}"
+    loop: "{{ secrets_using_token.data | dict2items }}"
+    no_log: False
+
+  - name: Print all retrieved values
+    debug:
+      msg: "KEY: {{ item.key }}, VALUE: {{ item.value }}"
+    loop: "{{ secrets_using_token.data | dict2items }}"
+    loop_control:
+       label: "{{ item.key }}"
+----------   -----------   -----------  ---------
