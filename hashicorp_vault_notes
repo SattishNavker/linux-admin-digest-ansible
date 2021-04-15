@@ -1,0 +1,6 @@
+In order for Hashicorp Vault to manage (rotate) the password for a service account,
+the service account needs to be under the Hashicorp Vault OU and
+manually added to the HashicorpVault-AD secrets under the relevant namespace.
+
+New service account can directly be requested under the Hashicorp Vault OU or existing accounts can be migrated over.
+(SNOW internal process)
