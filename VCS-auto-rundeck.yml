@@ -16,11 +16,11 @@
     - name: Copy csv file to '{{ variable_host }}'
       copy:
         src: "{{ path_to_csv }}"
-        dest: "/var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv"
+        dest: "/var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VCS-setup.csv"
         mode: '0400'
 
     - name: Remove blank spaces from CSV to avoid errors
-      shell: sed -i "s/ //g" /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv
+      shell: sed -i "s/ //g" /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VCS-setup.csv
 
     - name: Check if PRD/DR env is supplied
       shell: echo '{{ selectenv }}';
@@ -44,9 +44,72 @@
         else
           echo "continue ...";
         fi;
-      register:
+      register: contents_0
     - debug:
         msg:
           - " ---- Prechecks ------ "
           - "{{ contents_0.stdout }}"
-      
+
+    - name:
+      shell: |
+        for i in `grep id-sg /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VCS-setup.csv | awk -F"," '{ print $1 ":" $2 ":" $3 ":" $4 ":" $5 ":" $6 ":" $7 }'`;
+        do
+         echo hagrp -add `echo $i|awk -F":" '{ print $1 }'`;
+         {{ path }}/hagrp -add `echo $i|awk -F":" '{ print $1 }'`;
+         echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` SystemList hagrp -add `echo $i|awk -F":" '{ print $2 }'` hagrp -add `echo $i|awk -F":" '{ print $3 }'` hagrp -add `echo $i|awk -F":" '{ print $4 }'` hagrp -add `echo $i|awk -F":" '{ print $5 }'` hagrp -add `echo $i|awk -F":" '{ print $6 }'` hagrp -add `echo $i|awk -F":" '{ print $7 }'`;
+         {{ path }}/hagrp -modify `echo $i|awk -F":" '{ print $1 }'` SystemList hagrp -add `echo $i|awk -F":" '{ print $2 }'` hagrp -add `echo $i|awk -F":" '{ print $3 }'` hagrp -add `echo $i|awk -F":" '{ print $4 }'` hagrp -add `echo $i|awk -F":" '{ print $5 }'` hagrp -add `echo $i|awk -F":" '{ print $6 }'` hagrp -add `echo $i|awk -F":" '{ print $7 }'`;
+         echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` AutoStartList `echo $i|awk -F":" '{ print $2 }'`;
+         {{ path }}/hagrp -modify `echo $i|awk -F":" '{ print $1 }'` AutoStartList `echo $i|awk -F":" '{ print $2 }'`;
+
+         id sybase
+         if [ $? -eq 0 ];
+         then
+           echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` Operators sybase;
+           {{ path }}/hagrp -modify `echo $i|awk -F":" '{ print $1 }'` Operators sybase;
+         else
+           echo 'User Sybase is not present, so fire below command LATER >>';
+           echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` Operators sybase;
+         fi;
+
+         echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` SourceFile "./main.cf";
+         {{ path }}/hagrp -modify `echo $i|awk -F":" '{ print $1 }'` SourceFile "./main.cf";
+         done;
+      register: contents_1
+      when: selectprddr.stdout == "PRD"
+    - debug:
+        msg
+          - " ---- Creating SG PRD side ----- "
+          - "{{ contents_1.stdout }}"
+
+    - name:
+      shell: |
+        for i in `grep id-drsg /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VCS-setup.csv | awk -F"," '{ print $1 ":" $2 ":" $3 ":" $4 ":" $5 ":" $6 ":" $7 }'`;
+        do
+         echo hagrp -add `echo $i|awk -F":" '{ print $1 }'`;
+         {{ path }}/hagrp -add `echo $i|awk -F":" '{ print $1 }'`;
+         echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` SystemList hagrp -add `echo $i|awk -F":" '{ print $2 }'` hagrp -add `echo $i|awk -F":" '{ print $3 }'` hagrp -add `echo $i|awk -F":" '{ print $4 }'` hagrp -add `echo $i|awk -F":" '{ print $5 }'` hagrp -add `echo $i|awk -F":" '{ print $6 }'` hagrp -add `echo $i|awk -F":" '{ print $7 }'`;
+         {{ path }}/hagrp -modify `echo $i|awk -F":" '{ print $1 }'` SystemList hagrp -add `echo $i|awk -F":" '{ print $2 }'` hagrp -add `echo $i|awk -F":" '{ print $3 }'` hagrp -add `echo $i|awk -F":" '{ print $4 }'` hagrp -add `echo $i|awk -F":" '{ print $5 }'` hagrp -add `echo $i|awk -F":" '{ print $6 }'` hagrp -add `echo $i|awk -F":" '{ print $7 }'`;
+         echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` AutoStartList `echo $i|awk -F":" '{ print $2 }'`;
+         {{ path }}/hagrp -modify `echo $i|awk -F":" '{ print $1 }'` AutoStartList `echo $i|awk -F":" '{ print $2 }'`;
+
+         id sybase
+         if [ $? -eq 0 ];
+         then
+           echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` Operators sybase;
+           {{ path }}/hagrp -modify `echo $i|awk -F":" '{ print $1 }'` Operators sybase;
+         else
+           echo 'User Sybase is not present, so fire below command LATER >>';
+           echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` Operators sybase;
+         fi;
+
+         echo hagrp -modify `echo $i|awk -F":" '{ print $1 }'` SourceFile "./main.cf";
+         {{ path }}/hagrp -modify `echo $i|awk -F":" '{ print $1 }'` SourceFile "./main.cf";
+         done;
+      register: contents_1
+      when: selectprddr.stdout == "DR"
+    - debug:
+        msg
+          - " ---- Creating SG PRD side ----- "
+          - "{{ contents_1.stdout }}"
+
+    
