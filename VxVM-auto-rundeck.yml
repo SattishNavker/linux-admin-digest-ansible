@@ -74,3 +74,102 @@
           - "=== PART-1 : Taking disks under VxVM control "
           - "{{ contents_1.stdout }}"
       when: not skip
+
+    - name:
+      shell: |
+        for i in `grep id-dginit /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv | awk -F"," '{print $1 ":" $2 ":" $3 ":" $4 ":" $5}'`;
+        do
+         {{ path }}/vxdg init `echo $i|awk -F":" '{ print $1 }'` `echo $i|awk -F":" '{ print $2 }'`=`echo $i|awk -F":" '{ print $3 }'`;
+         echo vxdg init `echo $i|awk -F":" '{ print $1 }'` `echo $i|awk -F":" '{ print $2 }'`=`echo $i|awk -F":" '{ print $3 }'`;
+         echo -----;
+        done
+      register: contents_2
+    - debug:
+        msg:
+          - "=== PART-2 : Initializing DG with first disk "
+          - "{{ contents_2.stdout }}"
+
+    - name:
+      shell:
+        for i in `grep id-dgadd /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv | awk -F"," '{print $1 ":" $2 ":" $3 ":" $4 ":" $5}'`;
+        do
+          {{ path }}/vxdg -g `echo $i|awk -F":" '{ print $1 }'` adddisk `echo $i|awk -F":" '{ print $2 }'`=`echo $i|awk -F":" '{ print $3 }'`;
+          echo vxdg -g `echo $i|awk -F":" '{ print $1 }'` adddisk `echo $i|awk -F":" '{ print $2 }'`=`echo $i|awk -F":" '{ print $3 }'`;
+          echo -----;
+        done
+      register: contents_3
+    - debug:
+        msg:
+          - "=== PART-3 : Taking remaining disks under DG control "
+          - "{{ contents_3.stdout }}"
+
+    - name:
+      shell: |
+        for i in `grep id-vol /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv | awk -F"," '{ print $1 ":" $2 ":" $3 ":" $4 ":" $5 ":" $6 ":" $7 ":" $8 ":" $9 }'`;
+        do
+          echo --`echo $i|awk -F":" '{ print $2 }'`--;
+          echo vxassist -g `echo $i|awk -F":" '{ print $1 }'` make `echo $i|awk -F":" '{ print $2 }'` `echo $i|awk -F":" '{ print $3 }'` `echo $i|awk -F":" '{ print $7 }'` `echo $i|awk -F":" '{ print $8 }'` `echo $i|awk -F":" '{ print $9 }'`;
+          {{ path }}/vxassist -g `echo $i|awk -F":" '{ print $1 }'` make `echo $i|awk -F":" '{ print $2 }'` `echo $i|awk -F":" '{ print $3 }'` `echo $i|awk -F":" '{ print $7 }'` `echo $i|awk -F":" '{ print $8 }'` `echo $i|awk -F":" '{ print $9 }'`;
+          if [ $? -eq 64 ];
+          then
+            dgname=`echo $i|awk -F":" '{ print $1 }'`
+            csize=`{{ path }}/vxassist -g $dgname maxsize | awk '{ print $5 }' | tr -d '(),'`;
+            {{ path }}/vxassist -g `echo $i|awk -F":" '{ print $1 }'` make `echo $i|awk -F":" '{ print $2 }'` `echo $i|awk -F":" '{ print $3 }'` `echo $i|awk -F":" '{ print $7 }'` `echo $i|awk -F":" '{ print $8 }'` `echo $i|awk -F":" '{ print $9 }'`;
+            echo vxassist -g `echo $i|awk -F":" '{ print $1 }'` make `echo $i|awk -F":" '{ print $2 }'` `echo $i|awk -F":" '{ print $3 }'` `echo $i|awk -F":" '{ print $7 }'` `echo $i|awk -F":" '{ print $8 }'` `echo $i|awk -F":" '{ print $9 }'`;
+            echo ===**===;
+          else
+            echo --- > /dev/null;
+          fi;
+        done;
+      register: contents_4
+    - debug:
+        msg:
+          - "=== PART-4 : Creating volumes based on layout and size "
+          - "{{ contents_4.stdout }}"
+
+    - name:
+      shell: |
+        for i in `grep id-dgadd /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv | awk -F"," '{print $1 ":" $2 ":" $3 ":" $4 ":" $5}'`;
+        do
+          {{ path }}/vxedit -g `echo $i|awk -F":" '{ print $1 }'` set user=sybase group=sybase `echo $i|awk -F":" '{ print $2 }'`;
+          echo vxedit -g `echo $i|awk -F":" '{ print $1 }'` set user=sybase group=sybase `echo $i|awk -F":" '{ print $2 }'`;
+          echo -------;
+        done;
+        for i in `grep id-vol /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv | awk -F"," '{print $1 ":" $2 ":" $3 ":" $4 ":" $5}'`;
+        do
+         ls -l /dev/vx/dsk/`echo $i|awk -F":" '{ print $1 }'`/`echo $i|awk -F":" '{ print $2 }'`;
+        done
+      register:
+    - debug:
+        msg:
+          - "=== PART-5 : Volume ownership changed for sybase usage "
+          - "{{ contents_5.stdout }}"
+
+    - name:
+      shell: |
+        for i in `grep id-mkfs /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv | awk -F"," '{print $1 ":" $2 ":" $3 ":" $4 ":" $5 ":" $6}'`;
+        do
+          umount -l /mnt;
+          mount -t vxfs /dev/vx/dsk/`echo $i|awk -F":" '{ print $1 }'`/`echo $i|awk -F":" '{ print $2 }'` /mnt
+          if [ $? -eq 1 ];
+          then
+            mkfs.vxfs /dev/vx/dsk/`echo $i|awk -F":" '{ print $1 }'`/`echo $i|awk -F":" '{ print $2 }'`
+          else
+            echo "DO NOT provide vols that are formatted";
+            umount -l /mnt;
+          fi;
+          mkdir -p `echo $i|awk -F":" '{ print $6 }'`;
+          echo chown sybase:sybase `echo $i|awk -F":" '{ print $6 }'`;
+        done
+        echo ------------------------------------------;
+        echo -- Additional steps for non-VCS setup ----;
+        for i in `grep id-mkfs /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv | awk -F"," '{print $1 ":" $2 ":" $3 ":" $4 ":" $5 ":" $6}'`;
+        do
+         cp /etc/fstab /etc/fstab_Rundeck-`date +"%m_%d_%Y_%H_%M_%S"`;
+         chown sybase:sybase `echo $i|awk -F":" '{ print $6 }'`;
+        done
+      register:
+    - debug:
+        msg:
+          - "=== PART-6 : Mounting of formatted Volumes "
+          - "{{ contents_6.stdout }}"        
