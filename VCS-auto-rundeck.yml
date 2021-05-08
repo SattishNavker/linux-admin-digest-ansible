@@ -1,0 +1,52 @@
+---
+- name: VXVM-FS-creation-sybase-DB
+  hosts: '{{ variable_host }}'
+  order: sorted
+  gather_facts: False
+  remote_user: '{{ variable_user }}'
+  become: '{{ become_true_false }}'
+  become_method: '{{ variable_become_method }}'
+  become_user: '{{ variable_become_user }}'
+
+  vars:
+    skip: 0
+    path: /opt/VRTS/bin
+
+  tasks:
+    - name: Copy csv file to '{{ variable_host }}'
+      copy:
+        src: "{{ path_to_csv }}"
+        dest: "/var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv"
+        mode: '0400'
+
+    - name: Remove blank spaces from CSV to avoid errors
+      shell: sed -i "s/ //g" /var/tmp/{{ variable_user }}_Rundeck{{ job_id }}-VxVM-setup.csv
+
+    - name: Check if PRD/DR env is supplied
+      shell: echo '{{ selectenv }}';
+      register: selectprddr
+
+    - name: VCS status BEFORE starting changes
+      shell: |
+        '{{ path }}'/hastatus -sum
+      register: vcsstatfirst
+    - debug: msg="{{ vcsstatfirst.stdout }}"
+
+    - name:
+      shell: |
+        '{{ path }}'/hacf -verify /etc/VRTSvcs/conf/config; cd /etc/VRTSvcs/conf/config;
+        '{{ path }}'/hacf -cftocmd . -dest /var/tmp;
+        mv /var/tmp/main.cmd /var/tmp/Rundeck{{ job_id }}-main-cmd.txt; ls -l /var/tmp/*-main-cmd.txt;
+        '{{ path }}'/haconf -makerw;
+        if [ $? -eq 1 ];
+        then
+          echo "possible : VCS WARNING V-16-1-10364 Cluster already writable"
+        else
+          echo "continue ...";
+        fi;
+      register:
+    - debug:
+        msg:
+          - " ---- Prechecks ------ "
+          - "{{ contents_0.stdout }}"
+      
